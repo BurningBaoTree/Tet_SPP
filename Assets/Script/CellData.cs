@@ -12,7 +12,9 @@ public enum cellState
     Rstate,
     ReLstate,
     ReSstate,
-    quare
+    Square,
+    Bar,
+    Invisival
 }
 
 /// <summary>
@@ -20,8 +22,21 @@ public enum cellState
 /// </summary>
 public class CellData : MonoBehaviour
 {
+    /// <summary>
+    /// 양쪽 끝 체크
+    /// </summary>
+    public bool EndCell = false;
+
+    /// <summary>
+    /// 가운데 체크
+    /// </summary>
     public bool IsCenter;
-    public bool Activated = false;
+
+    /// <summary>
+    /// 작동중인지 체크용
+    /// </summary>
+    public bool IsActivated = true;
+
     /// <summary>
     /// 현제 타일의 제조 넘버
     /// </summary>
@@ -70,8 +85,14 @@ public class CellData : MonoBehaviour
                     case cellState.ReSstate:
                         spriteRenderer.color = ReSstateColor;
                         break;
-                    case cellState.quare:
+                    case cellState.Square:
                         spriteRenderer.color = quareColor;
+                        break;
+                    case cellState.Bar:
+                        spriteRenderer.color = BarClolr;
+                        break;
+                    case cellState.Invisival:
+                        spriteRenderer.color = InvisivalColor;
                         break;
                     default:
                         break;
@@ -80,6 +101,9 @@ public class CellData : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// 각 타입마다 색상
+    /// </summary>
     public Color EmptyColor;
     public Color TstateColor;
     public Color LstateColor;
@@ -88,6 +112,8 @@ public class CellData : MonoBehaviour
     public Color ReLstateColor;
     public Color ReSstateColor;
     public Color quareColor;
+    public Color BarClolr;
+    public Color InvisivalColor;
 
     SpriteRenderer spriteRenderer;
     private void Awake()
@@ -95,3 +121,5 @@ public class CellData : MonoBehaviour
         spriteRenderer = GetComponent<SpriteRenderer>();
     }
 }
+
+// 블록 관련 로직들은 다 이곳에, 블록 지나감, 밑블록 옆블록 인식 , 회전과 이동도 여기서 

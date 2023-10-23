@@ -7,26 +7,6 @@ using UnityEngine;
 /// </summary>
 public class WorkArea : MonoBehaviour
 {
-    public bool activeControll;
-    bool active = false;
-    public bool Active
-    {
-        get
-        {
-            return active;
-        }
-        set
-        {
-            active = value;
-            if (active)
-            {
-                positioning.Invoke();
-                active = false;
-                activeControll =false;
-            }
-        }
-    }
-
     public List<CellData> cells = new List<CellData>();
 
     public Vector2Int size;
@@ -84,13 +64,10 @@ public class WorkArea : MonoBehaviour
         }
     }
 
-    Action positioning;
-
     public float space = 0.5f;
 
     private void OnEnable()
     {
-        positioning += TileSetting;
         TileSetting();
     }
 
@@ -108,6 +85,7 @@ public class WorkArea : MonoBehaviour
                 Destroy(transform.GetChild(i).gameObject, 1f);
             }
         }
+
         if (VerticalCell < 20)
         {
             int makeingnum = 0;
@@ -124,6 +102,18 @@ public class WorkArea : MonoBehaviour
                     cells.Add(cellobject.GetComponent<CellData>());
                     cells[makeingnum].number = makeingnum;
                     cells[makeingnum].CellState = cellState.Empty;
+                    if (i == 0)
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
+                    else if (j == 0)
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
+                    else if (j == (HorizonCell - 1))
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
                     makeingnum++;
                 }
             }
@@ -144,6 +134,18 @@ public class WorkArea : MonoBehaviour
                     cells.Add(cellobject.GetComponent<CellData>());
                     cells[makeingnum].number = makeingnum;
                     cells[makeingnum].CellState = cellState.Empty;
+                    if (i == 0)
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
+                    else if (j == 0)
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
+                    else if (j == (HorizonCell - 1))
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
                     makeingnum++;
                 }
             }
@@ -160,14 +162,19 @@ public class WorkArea : MonoBehaviour
                     cells.Add(cellobject.GetComponent<CellData>());
                     cells[makeingnum].number = makeingnum;
                     cells[makeingnum].CellState = cellState.Empty;
+                    if (j == 0)
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
+                    else if (j == (HorizonCell - 1))
+                    {
+                        cells[makeingnum].EndCell = true;
+                    }
                     makeingnum++;
                 }
             }
         }
-    }
-    private void Update()
-    {
-        Active = activeControll;
+
     }
 }
 
