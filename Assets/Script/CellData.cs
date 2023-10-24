@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -9,12 +10,12 @@ public enum cellState
     Tstate,
     Lstate,
     Sstate,
-    Rstate,
     ReLstate,
     ReSstate,
     Square,
     Bar,
-    Invisival
+    Invisival,
+    Rstate
 }
 
 /// <summary>
@@ -28,14 +29,62 @@ public class CellData : MonoBehaviour
     public bool EndCell = false;
 
     /// <summary>
+    /// 양쪽 끝 체크
+    /// </summary>
+    public bool RigntEnd = false;
+
+    /// <summary>
+    /// 양쪽 끝 체크
+    /// </summary>
+    public bool LeftEnd = false;
+
+    /// <summary>
     /// 가운데 체크
     /// </summary>
-    public bool IsCenter;
+    public bool IsCenter = false;
 
+    public bool IsSet = false;
+
+    public Action<bool> RightReached;
+    public Action<bool> LeftReached;
+    public Action ReachedTheEnd;
     /// <summary>
     /// 작동중인지 체크용
     /// </summary>
-    public bool IsActivated = true;
+    public bool isActivated = false;
+    public bool IsActivated
+    {
+        get
+        {
+            return isActivated;
+        }
+        set
+        {
+            if (isActivated != value)
+            {
+                isActivated = value;
+                if (!isActivated)
+                {
+                    CellState = cellState.Empty;
+                }
+                else
+                {
+                    if (RigntEnd)
+                    {
+                        RightReached?.Invoke(false);
+                    }
+                    else if(LeftEnd)
+                    {
+                        LeftReached?.Invoke(false);
+                    }
+                    else if(EndCell)
+                    {
+                        ReachedTheEnd?.Invoke();
+                    }
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// 현제 타일의 제조 넘버

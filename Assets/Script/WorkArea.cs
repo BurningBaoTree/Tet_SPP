@@ -108,11 +108,11 @@ public class WorkArea : MonoBehaviour
                     }
                     else if (j == 0)
                     {
-                        cells[makeingnum].EndCell = true;
+                        cells[makeingnum].RigntEnd = true;
                     }
                     else if (j == (HorizonCell - 1))
                     {
-                        cells[makeingnum].EndCell = true;
+                        cells[makeingnum].LeftEnd = true;
                     }
                     makeingnum++;
                 }
@@ -140,11 +140,11 @@ public class WorkArea : MonoBehaviour
                     }
                     else if (j == 0)
                     {
-                        cells[makeingnum].EndCell = true;
+                        cells[makeingnum].RigntEnd = true;
                     }
                     else if (j == (HorizonCell - 1))
                     {
-                        cells[makeingnum].EndCell = true;
+                        cells[makeingnum].LeftEnd = true;
                     }
                     makeingnum++;
                 }
@@ -164,11 +164,11 @@ public class WorkArea : MonoBehaviour
                     cells[makeingnum].CellState = cellState.Empty;
                     if (j == 0)
                     {
-                        cells[makeingnum].EndCell = true;
+                        cells[makeingnum].RigntEnd = true;
                     }
                     else if (j == (HorizonCell - 1))
                     {
-                        cells[makeingnum].EndCell = true;
+                        cells[makeingnum].LeftEnd = true;
                     }
                     makeingnum++;
                 }
