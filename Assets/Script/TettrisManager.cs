@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class TettrisManager : MonoBehaviour
@@ -10,14 +11,15 @@ public class TettrisManager : MonoBehaviour
     public bool RigthmoveCheck = true;
     public bool LeftmoveCheck = true;
     public bool DownMoveCheck = true;
+    public bool CantMove = false;
 
-    bool reachend = false;
+    List<CellData> blockGroup;
 
     /// <summary>
-    /// 이번 턴 체크용
+    /// 이번 턴 체크용 프로퍼티
     /// </summary>
-    bool trunActive = false;
-    public bool TrunActive
+    public bool trunActive = false;
+    public bool TurnActive
     {
         get
         {
@@ -30,15 +32,29 @@ public class TettrisManager : MonoBehaviour
                 trunActive = value;
                 if (!trunActive)
                 {
-
+                    updater += parking;
+                }
+                else
+                {
+                    CallNectTurn();
                 }
             }
         }
     }
 
+    /// <summary>
+    /// 게임 화면 컴포넌트
+    /// </summary>
     WorkArea wk;
+
+    /// <summary>
+    /// 쿨타임 시스템
+    /// </summary>
     CoolTimeSys cool;
 
+    /// <summary>
+    /// 블록 이동 관련 Vector2 변수
+    /// </summary>
     Vector2 inputcontext;
     Vector2 Inputcontext
     {
@@ -51,12 +67,18 @@ public class TettrisManager : MonoBehaviour
             if (inputcontext != value)
             {
                 inputcontext = value;
-
             }
         }
     }
 
+    /// <summary>
+    /// 현재 조종중인 블록 패턴
+    /// </summary>
     public cellState cellClass = cellState.Tstate;
+
+    /// <summary>
+    /// 로테이션 조종용 int 변수
+    /// </summary>
     int rotateCheck = 0;
     int RotateCheck
     {
@@ -92,49 +114,290 @@ public class TettrisManager : MonoBehaviour
     /// </summary>
     int NowStatePoint;
 
+    /// <summary>
+    /// 이전 지점
+    /// </summary>
     int previousPoint;
+
+    /// <summary>
+    /// 선행 지점
+    /// </summary>
+    int setPoint;
 
     /// <summary>
     /// 업데이트 실행용 델리게이트
     /// </summary>
     Action updater;
 
-    List<CellData> blockGroup;
 
+    //일부 컴포넌트 가져오기
     private void Awake()
     {
         playerinput = new PlayerInput();
         wk = GetComponent<WorkArea>();
         cool = GetComponent<CoolTimeSys>();
     }
+
+    //모든 셀에 함수 구독 및 input시스템
     private void OnEnable()
     {
         foreach (CellData cell in wk.cells)
         {
             cell.RightReached += RightCheck;
             cell.LeftReached += LeftCheck;
-            cell.ReachedTheEnd += TurnEnd;
+            cell.ReachedTheEnd += TurnEndDelay;
         }
-
         playerinput.Enable();
         playerinput.Player.MoveBlock.performed += MoveBlock;
+        playerinput.Player.RotateBlock.performed += RotateBlock;
+        playerinput.Player.Space.performed += DownBlockImmidiately;
     }
 
+    //시작지점 지정, 턴 상태 시작
     private void Start()
     {
-        TrunActive = true;
         //시작지점 계산 가로*세로 - 가로의 가운데지점을 int로 환산한 값(즉 제일 위에 가운데 번호의 셀)
         StartPoint = wk.HorizonCell * wk.VerticalCell - (int)(wk.HorizonCell * 0.5f);
-        NowStatePoint = StartPoint;
-        previousPoint = NowStatePoint;
-        updater += fallDownBlock;
+        TurnActive = true;
     }
     private void Update()
     {
         updater();
     }
 
+    /// <summary>
+    /// 스타트 포인트에서 블록이 떨어지게 하는 함수
+    /// </summary>
+    void fallDownBlock()
+    {
+        if (cool.coolclocks[0].coolEnd && TurnActive && !CantMove)
+        {
+            SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+            previousPoint = NowStatePoint;
+            setPoint = NowStatePoint - wk.HorizonCell;
+            cool.CoolTimeStart(0, 1f);
+            NowStatePoint -= wk.HorizonCell;
+            DownMoveCheck = true;
+        }
+        else if(CantMove)
+        {
+            TurnEndDelay();
+        }
+    }
 
+    /// <summary>
+    /// 블록 도착 실행 함수
+    /// </summary>
+    void parking()
+    {
+        if (cool.coolclocks[1].coolEnd)
+        {
+            conformBlock(previousPoint, cellClass, rotateCheck);
+            previousPoint = StartPoint;
+            /*LinePathch();*/
+            updater -= parking;
+            TurnActive = true;
+        }
+    }
+
+    /// <summary>
+    /// 턴이 끝났음을 알리는 함수(IsEnd델리게이트랑 연결되어있음)
+    /// </summary>
+    void TurnEndDelay()
+    {
+        cool.CoolTimeStart(0, 1.5f);
+        updater -= fallDownBlock;
+        DownMoveCheck = false;
+        cool.CoolTimeStart(1, 1f);
+        TurnActive = false;
+    }
+
+    /// <summary>
+    /// 오른쪽으로 이동할수 있는지 체크용 함수
+    /// </summary>
+    /// <param name="moveable"></param>
+    void RightCheck(bool moveable)
+    {
+        RigthmoveCheck = moveable;
+    }
+
+    /// <summary>
+    /// 왼쪽으로 이동할수 있는지 체크용 함수
+    /// </summary>
+    /// <param name="moveable"></param>
+    void LeftCheck(bool moveable)
+    {
+        LeftmoveCheck = moveable;
+    }
+
+    /// <summary>
+    /// 인풋 액션 이동 함수
+    /// </summary>
+    /// <param name="context"></param>
+    private void MoveBlock(UnityEngine.InputSystem.InputAction.CallbackContext context)
+    {
+        Inputcontext = context.ReadValue<Vector2>();
+        Debug.Log("호출" + Inputcontext);
+        if (Inputcontext.x > 0)
+        {
+            RightMove();
+        }
+        else if (Inputcontext.x < 0)
+        {
+            LeftMove();
+        }
+        else if (Inputcontext.y < 0)
+        {
+            DownMove();
+        }
+    }
+
+    /// <summary>
+    /// 인풋액션 블록을 맨 아래로 보내버리는 함수
+    /// </summary>
+    /// <param name="context"></param>
+    private void DownBlockImmidiately(UnityEngine.InputSystem.InputAction.CallbackContext context)
+    {
+        updater += DownMove;
+    }
+
+    /// <summary>
+    /// 인풋액션 블록을 회전시키는 함수
+    /// </summary>
+    /// <param name="context"></param>
+    private void RotateBlock(UnityEngine.InputSystem.InputAction.CallbackContext context)
+    {
+        float con = context.ReadValue<float>();
+        if (con > 0)
+        {
+            RightRotateMove();
+        }
+        else if (con < 0)
+        {
+            LeftRotateMove();
+        }
+    }
+
+    /// <summary>
+    /// 왼쪽 이동 함수
+    /// </summary>
+    void LeftMove()
+    {
+        if (LeftmoveCheck)
+        {
+            NowStatePoint++;
+            SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+            previousPoint = NowStatePoint;
+            setPoint = NowStatePoint - wk.HorizonCell;
+            RigthmoveCheck = true;
+        }
+    }
+
+    /// <summary>
+    /// 오른쪽 이동 함수
+    /// </summary>
+    void RightMove()
+    {
+        if (RigthmoveCheck)
+        {
+            NowStatePoint--;
+            SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+            previousPoint = NowStatePoint;
+            setPoint = NowStatePoint - wk.HorizonCell;
+            LeftmoveCheck = true;
+        }
+    }
+
+    /// <summary>
+    /// 아랫쪽 이동 함수
+    /// </summary>
+    void DownMove()
+    {
+        if (DownMoveCheck)
+        {
+            NowStatePoint -= wk.HorizonCell;
+            SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+            previousPoint = NowStatePoint;
+            setPoint = NowStatePoint - wk.HorizonCell;
+        }
+        else
+        {
+            updater -= DownMove;
+            TurnActive = false;
+        }
+    }
+
+    /// <summary>
+    /// 오른쪽 회전 함수
+    /// </summary>
+    void RightRotateMove()
+    {
+        RotateCheck++;
+        SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+        previousPoint = NowStatePoint;
+        setPoint = NowStatePoint - wk.HorizonCell;
+    }
+
+    /// <summary>
+    /// 왼쪽 회전 함수
+    /// </summary>
+    void LeftRotateMove()
+    {
+        RotateCheck--;
+        SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+        previousPoint = NowStatePoint;
+        setPoint = NowStatePoint - wk.HorizonCell;
+    }
+
+    /// <summary>
+    /// 턴이 끝나고 같은 라인을 확인하여 한줄이 다 블록으로 차 있으면 사라지고 위에 블록을 가져온다.
+    /// </summary>
+    void LinePathch()
+    {
+        for (int i = 0; i < wk.VerticalCell; i++)
+        {
+            bool LineCheck = true;
+            for (int j = 0; j < wk.HorizonCell; j++)
+            {
+                LineCheck = wk.cells[i * wk.HorizonCell + j].IsSet;
+            }
+            if (LineCheck)
+            {
+                for (int j = 0; j < wk.HorizonCell; j++)
+                {
+                    if (wk.cells[(i + 1) * wk.HorizonCell + j] != null)
+                    {
+                        wk.cells[i * wk.HorizonCell + j].IsSet = wk.cells[(i + 1) * wk.HorizonCell + j].IsSet;
+                        wk.cells[i * wk.HorizonCell + j].isActivated = wk.cells[(i + 1) * wk.HorizonCell + j].isActivated;
+                        wk.cells[i * wk.HorizonCell + j].CellState = wk.cells[(i + 1) * wk.HorizonCell + j].CellState;
+                    }
+                    else
+                    {
+                        wk.cells[i * wk.HorizonCell + j].IsSet = false;
+                        wk.cells[i * wk.HorizonCell + j].isActivated = false;
+                    }
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 다음 턴을 실행하며 일부 값들을 초기화 및 업데이터에 함수 구독
+    /// </summary>
+    void CallNectTurn()
+    {
+        DownMoveCheck = true;
+        RigthmoveCheck = true;
+        LeftmoveCheck = true;
+        CantMove = false;
+        cellClass = (cellState)UnityEngine.Random.Range(1, 8);
+        NowStatePoint = StartPoint;
+        setPoint = NowStatePoint - wk.HorizonCell;
+        cool.CoolTimeStart(0, 1f);
+        updater += fallDownBlock;
+    }
+    //------------------------------<블록 스폰 관련>--------------------------------------------
+    #region 블록 생성 관련 함수
     /// <summary>
     /// 패턴 정의용 선택함수
     /// </summary>
@@ -146,7 +409,7 @@ public class TettrisManager : MonoBehaviour
         {
             wk.cells[num].CellState = cell;
             wk.cells[num].IsActivated = true;
-            /*            blockGroup.Add(wk.cells[num]);*/
+            setPoint = previousPoint;
         }
     }
     /// <summary>
@@ -161,7 +424,6 @@ public class TettrisManager : MonoBehaviour
             wk.cells[num].CellState = cell;
             wk.cells[num].IsActivated = true;
             wk.cells[num].IsCenter = true;
-            /*            blockGroup.Add(wk.cells[num]);*/
         }
     }
     /// <summary>
@@ -174,9 +436,26 @@ public class TettrisManager : MonoBehaviour
         if (num < wk.cells.Count && num > -1)
         {
             wk.cells[num].CellState = cell;
-            wk.cells[num].IsActivated = false;
+            wk.cells[num].IsActivated = true;
             wk.cells[num].IsSet = true;
-            /*            blockGroup.Add(wk.cells[num]);*/
+            wk.cells[num + wk.HorizonCell].IsSet = true;
+            /*            if (wk.cells[num].RigntEnd)
+                        {
+                            wk.cells[num + 1].IsSet = true;
+                        }
+                        else if (wk.cells[num].LeftEnd)
+                        {
+                            wk.cells[num - 1].IsSet = true;
+                        }
+                        else
+                        {
+                            wk.cells[num + 1].IsSet = true;
+                            wk.cells[num - 1].IsSet = true;
+                        }
+                        if (wk.cells[num].EndCell)
+                        {
+                            wk.cells[num + wk.HorizonCell].IsSet = true;
+                        }*/
         }
     }
     /// <summary>
@@ -189,10 +468,27 @@ public class TettrisManager : MonoBehaviour
         if (num < wk.cells.Count && num > -1)
         {
             wk.cells[num].CellState = cell;
-            wk.cells[num].IsActivated = false;
+            wk.cells[num].IsActivated = true;
             wk.cells[num].IsCenter = false;
             wk.cells[num].IsSet = true;
-            /*            blockGroup.Add(wk.cells[num]);*/
+            wk.cells[num + wk.HorizonCell].IsSet = true;
+            /*            if (wk.cells[num].RigntEnd)
+                        {
+                            wk.cells[num + 1].IsSet = true;
+                        }
+                        else if (wk.cells[num].LeftEnd)
+                        {
+                            wk.cells[num - 1].IsSet = true;
+                        }
+                        else
+                        {
+                            wk.cells[num + 1].IsSet = true;
+                            wk.cells[num - 1].IsSet = true;
+                        }
+                        if (wk.cells[num].EndCell)
+                        {
+                            wk.cells[num + wk.HorizonCell].IsSet = true;
+                        }*/
         }
     }
 
@@ -221,133 +517,52 @@ public class TettrisManager : MonoBehaviour
             wk.cells[num].IsCenter = false;
         }
     }
-
     /// <summary>
-    /// 스타트 포인트에서 블록이 떨어지게 하는 함수
+    /// 패턴 정의용 선택함수
     /// </summary>
-    void fallDownBlock()
+    /// <param name="num">cell리스트의 index값</param>
+    /// <param name="cell">패턴별 cell 색상 선택용</param>
+    void ComcellSellector(int num, cellState cell)
     {
-        if (cool.coolclocks[0].coolEnd && NowStatePoint > 0)
+        if (num < wk.cells.Count && num > -1)
         {
-            SpawnBlock(NowStatePoint, cellClass, RotateCheck);
-            previousPoint = NowStatePoint;
-            cool.CoolTimeStart(0, 1f);
-            NowStatePoint -= wk.HorizonCell;
-        }
-        else if (reachend)
-        {
-            cool.CoolTimeStart(0, 1f);
-            TrunActive = false;
-            reachend = false;
-            conformBlock(previousPoint, cellClass, rotateCheck);
-            cellClass = (cellState)UnityEngine.Random.Range(1, 8);
-            NowStatePoint = StartPoint;
-            TrunActive = true;
+            if (wk.cells[num].IsSet)
+            {
+                CantMove = true;
+            }
         }
     }
-    void parking()
-    {
-
-    }
-
-    void TurnEnd()
-    {
-        reachend = true;
-        updater -= fallDownBlock;
-    }
-    void RightCheck(bool moveable)
-    {
-        RigthmoveCheck = moveable;
-    }
-    void LeftCheck(bool moveable)
-    {
-        LeftmoveCheck = moveable;
-    }
-
     /// <summary>
-    /// 인풋 액션 이동 함수
+    /// 패턴 정의용 선택함수(가운데 정의)
     /// </summary>
-    /// <param name="context"></param>
-    private void MoveBlock(UnityEngine.InputSystem.InputAction.CallbackContext context)
+    /// <param name="num">cell리스트의 index값</param>
+    /// <param name="cell">패턴별 cell 색상 선택용</param>
+    void ComcellCenteredmade(int num, cellState cell)
     {
-        Inputcontext = context.ReadValue<Vector2>();
-        Debug.Log("호출" + Inputcontext);
-        if (Inputcontext.x > 0)
+        if (num < wk.cells.Count && num > -1)
         {
-            RightMove();
-        }
-        else if (Inputcontext.x < 0)
-        {
-            LeftMove();
-        }
-        else if (Inputcontext.y < 0)
-        {
-
+            if (wk.cells[num].IsSet)
+            {
+                CantMove = true;
+            }
         }
     }
-
-    /// <summary>
-    /// 왼쪽 이동 함수
-    /// </summary>
-    void LeftMove()
-    {
-        if (LeftmoveCheck)
-        {
-            NowStatePoint++;
-            SpawnBlock(NowStatePoint, cellClass, RotateCheck);
-            previousPoint = NowStatePoint;
-            RigthmoveCheck = true;
-        }
-    }
-    void RightMove()
-    {
-        if (RigthmoveCheck)
-        {
-            NowStatePoint--;
-            SpawnBlock(NowStatePoint, cellClass, RotateCheck);
-            previousPoint = NowStatePoint;
-            LeftmoveCheck = true;
-        }
-    }
-    void DownMove()
-    {
-        if (DownMoveCheck)
-        {
-            NowStatePoint -= wk.HorizonCell;
-            SpawnBlock(NowStatePoint, cellClass, RotateCheck);
-            previousPoint = NowStatePoint;
-        }
-        else
-        {
-            TrunActive = false;
-        }
-    }
-    void RightRotateMove()
-    {
-        RotateCheck++;
-        SpawnBlock(NowStatePoint, cellClass, RotateCheck);
-        previousPoint = NowStatePoint;
-    }
-    void LeftRotateMove()
-    {
-        RotateCheck--;
-        SpawnBlock(NowStatePoint, cellClass, RotateCheck);
-        previousPoint = NowStatePoint;
-    }
-
-
-    //------------------------------<블록 스폰 관련>--------------------------------------------
-
+    #endregion
     #region 블록 스폰 관련
     /// <summary>
-    /// 블록 모양을 결정짓는 함수
+    /// 블록 이동시 모양을 담당하는 함수
     /// </summary>
-    /// <param name="num">시작 인덱스</param>
+    /// <param name="num">인덱스</param>
     /// <param name="cell">셀 패턴</param>
-    /// <param name="rotateState">회전 상태</param>
-    void SpawnBlock(int num, cellState cell, int rotateState)
+    /// <param name="rotateState">회전값</param>
+    /// <param name="DeletPrevious">전에껄 삭제할지 말지 결정</param>
+    void SpawnBlock(int num, cellState cell, int rotateState, bool DeletPrevious)
     {
-        DespawnBlock(previousPoint, cellClass, RotateCheck);
+        if (DeletPrevious)
+        {
+            DespawnBlock(previousPoint, cellClass, RotateCheck);
+        }
+        CompairSpawnBlock(setPoint, cellClass, RotateCheck);
         switch (cell)
         {
             case cellState.Tstate:
@@ -991,6 +1206,225 @@ public class TettrisManager : MonoBehaviour
                         CFcellCenteredmade(num, cell);
                         CFcellSellector(num - 1, cell);
                         CFcellSellector(num - 2, cell);
+                        break;
+                }
+                break;
+            default:
+                break;
+        }
+        previousPoint = StartPoint;
+    }
+    void CompairSpawnBlock(int num, cellState cell, int rotateState)
+    {
+        switch (cell)
+        {
+            case cellState.Tstate:
+                switch (rotateState)
+                {
+                    case 0:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                    case 1:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        break;
+                    case 2:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                    case 3:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                }
+                break;
+            case cellState.Lstate:
+                switch (rotateState)
+                {
+                    case 0:
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - wk.HorizonCell + 1, cell);
+                        break;
+                    case 1:
+                        ComcellSellector(num + 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num - 1 - wk.HorizonCell, cell);
+                        break;
+                    case 2:
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num + 1 + wk.HorizonCell, cell);
+                        break;
+                    case 3:
+                        ComcellSellector(num - 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + 1, cell);
+                        ComcellSellector(num + 1 + wk.HorizonCell, cell);
+                        break;
+                }
+                break;
+            case cellState.Sstate:
+                switch (rotateState)
+                {
+                    case 0:
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + 1, cell);
+                        ComcellSellector(num - wk.HorizonCell + 1, cell);
+                        break;
+                    case 1:
+                        ComcellSellector(num + 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - wk.HorizonCell - 1, cell);
+                        break;
+                    case 2:
+                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        break;
+                    case 3:
+                        ComcellSellector(num + wk.HorizonCell + 1, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - 1, cell);
+                        break;
+                }
+                break;
+            ///아래 모양 무슨 모양인지 모르겠음
+            case cellState.Rstate:
+                switch (rotateState)
+                {
+                    case 0:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                    case 1:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                    case 2:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                    case 3:
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                }
+                break;
+            case cellState.ReLstate:
+                switch (rotateState)
+                {
+                    case 0:
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - wk.HorizonCell - 1, cell);
+                        break;
+                    case 1:
+                        ComcellSellector(num + 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
+                        break;
+                    case 2:
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
+                        break;
+                    case 3:
+                        ComcellSellector(num - 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + 1, cell);
+                        ComcellSellector(num + 1 - wk.HorizonCell, cell);
+                        break;
+                }
+                break;
+            case cellState.ReSstate:
+                switch (rotateState)
+                {
+                    case 0:
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num - wk.HorizonCell - 1, cell);
+                        break;
+                    case 1:
+                        ComcellSellector(num - 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellSellector(num + wk.HorizonCell + 1, cell);
+                        break;
+                    case 2:
+                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        break;
+                    case 3:
+                        ComcellSellector(num - wk.HorizonCell - 1, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + 1, cell);
+                        break;
+                }
+                break;
+            case cellState.Square:
+                ComcellCenteredmade(num, cell);
+                ComcellSellector(num - wk.HorizonCell, cell);
+                ComcellSellector(num - 1 - wk.HorizonCell, cell);
+                ComcellSellector(num - 1, cell);
+                break;
+            case cellState.Bar:
+                switch (rotateState)
+                {
+                    case 0:
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - wk.HorizonCell * 2, cell);
+                        break;
+                    case 1:
+                        ComcellSellector(num - 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + 1, cell);
+                        ComcellSellector(num + 2, cell);
+                        break;
+                    case 2:
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellSellector(num + wk.HorizonCell * 2, cell);
+                        break;
+                    case 3:
+                        ComcellSellector(num + 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num - 2, cell);
                         break;
                 }
                 break;
