@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class TettrisManager : MonoBehaviour
@@ -13,7 +12,7 @@ public class TettrisManager : MonoBehaviour
     public bool DownMoveCheck = true;
     public bool CantMove = false;
 
-    List<CellData> blockGroup;
+    List<CellData> blockGroup = new List<CellData>();
 
     /// <summary>
     /// 이번 턴 체크용 프로퍼티
@@ -102,7 +101,7 @@ public class TettrisManager : MonoBehaviour
             }
         }
     }
-
+    int previousRotate = 0;
 
     /// <summary>
     /// 시작지점
@@ -179,7 +178,7 @@ public class TettrisManager : MonoBehaviour
             NowStatePoint -= wk.HorizonCell;
             DownMoveCheck = true;
         }
-        else if(CantMove)
+        else if (CantMove)
         {
             TurnEndDelay();
         }
@@ -194,7 +193,7 @@ public class TettrisManager : MonoBehaviour
         {
             conformBlock(previousPoint, cellClass, rotateCheck);
             previousPoint = StartPoint;
-            /*LinePathch();*/
+            LinePathch();
             updater -= parking;
             TurnActive = true;
         }
@@ -335,7 +334,10 @@ public class TettrisManager : MonoBehaviour
         RotateCheck++;
         SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
         previousPoint = NowStatePoint;
+        previousRotate = RotateCheck;
         setPoint = NowStatePoint - wk.HorizonCell;
+        LeftCheck(true);
+        RightCheck(true);
     }
 
     /// <summary>
@@ -346,7 +348,10 @@ public class TettrisManager : MonoBehaviour
         RotateCheck--;
         SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
         previousPoint = NowStatePoint;
+        previousRotate = RotateCheck;
         setPoint = NowStatePoint - wk.HorizonCell;
+        LeftCheck(true);
+        RightCheck(true);
     }
 
     /// <summary>
@@ -359,27 +364,59 @@ public class TettrisManager : MonoBehaviour
             bool LineCheck = true;
             for (int j = 0; j < wk.HorizonCell; j++)
             {
-                LineCheck = wk.cells[i * wk.HorizonCell + j].IsSet;
+                if (!wk.cells[i * wk.HorizonCell + j].IsSet)
+                {
+                    LineCheck = false;
+                    break;
+                }
             }
+
             if (LineCheck)
             {
                 for (int j = 0; j < wk.HorizonCell; j++)
                 {
-                    if (wk.cells[(i + 1) * wk.HorizonCell + j] != null)
-                    {
-                        wk.cells[i * wk.HorizonCell + j].IsSet = wk.cells[(i + 1) * wk.HorizonCell + j].IsSet;
-                        wk.cells[i * wk.HorizonCell + j].isActivated = wk.cells[(i + 1) * wk.HorizonCell + j].isActivated;
-                        wk.cells[i * wk.HorizonCell + j].CellState = wk.cells[(i + 1) * wk.HorizonCell + j].CellState;
-                    }
-                    else
-                    {
-                        wk.cells[i * wk.HorizonCell + j].IsSet = false;
-                        wk.cells[i * wk.HorizonCell + j].isActivated = false;
-                    }
+                    blockGroup.Add(wk.cells[i * wk.HorizonCell + j]);
                 }
+                reFreshBlocks(i);
             }
         }
     }
+
+    void reFreshBlocks(int row)
+    {
+        //리스트에 있는 줄 다 지우기
+        foreach (CellData cell in blockGroup)
+        {
+            cell.IsSet = false;
+            cell.IsActivated = false;
+            cell.HoldCheck = false;
+            cell.RightEnd = false;
+            cell.LeftEnd = false;
+        }
+        blockGroup.Clear();
+        //줄을 한칸씩 땡겨오기
+        for (int i = row; i < wk.VerticalCell - 1; i++)
+        {
+            for (int j = 0; j < wk.HorizonCell; j++)
+            {
+                wk.cells[i * wk.HorizonCell + j].IsSet = wk.cells[(i + 1) * wk.HorizonCell + j].IsSet;
+                wk.cells[i * wk.HorizonCell + j].CellState = wk.cells[(i + 1) * wk.HorizonCell + j].CellState;
+                wk.cells[i * wk.HorizonCell + j].RightEnd = wk.cells[(i + 1) * wk.HorizonCell + j].RightEnd;
+                wk.cells[i * wk.HorizonCell + j].LeftEnd = wk.cells[(i + 1) * wk.HorizonCell + j].LeftEnd;
+                wk.cells[i * wk.HorizonCell + j].HoldCheck = wk.cells[(i + 1) * wk.HorizonCell + j].HoldCheck;
+            }
+        }
+        // 맨 위 줄 지우기
+        for (int j = 0; j < wk.HorizonCell; j++)
+        {
+            wk.cells[(wk.VerticalCell - 1) * wk.HorizonCell + j].IsSet = false;
+            wk.cells[(wk.VerticalCell - 1) * wk.HorizonCell + j].CellState = cellState.Empty;
+            wk.cells[(wk.VerticalCell - 1) * wk.HorizonCell + j].RightEnd = false;
+            wk.cells[(wk.VerticalCell - 1) * wk.HorizonCell + j].LeftEnd = false;
+            wk.cells[(wk.VerticalCell - 1) * wk.HorizonCell + j].HoldCheck = false;
+        }
+    }
+
 
     /// <summary>
     /// 다음 턴을 실행하며 일부 값들을 초기화 및 업데이터에 함수 구독
@@ -397,7 +434,7 @@ public class TettrisManager : MonoBehaviour
         updater += fallDownBlock;
     }
     //------------------------------<블록 스폰 관련>--------------------------------------------
-    #region 블록 생성 관련 함수
+    #region 블록 생성 관련
     /// <summary>
     /// 패턴 정의용 선택함수
     /// </summary>
@@ -433,29 +470,31 @@ public class TettrisManager : MonoBehaviour
     /// <param name="cell">패턴별 cell 색상 선택용</param>
     void CFcellSellector(int num, cellState cell)
     {
-        if (num < wk.cells.Count && num > -1)
+        try
         {
-            wk.cells[num].CellState = cell;
-            wk.cells[num].IsActivated = true;
-            wk.cells[num].IsSet = true;
-            wk.cells[num + wk.HorizonCell].IsSet = true;
-            /*            if (wk.cells[num].RigntEnd)
-                        {
-                            wk.cells[num + 1].IsSet = true;
-                        }
-                        else if (wk.cells[num].LeftEnd)
-                        {
-                            wk.cells[num - 1].IsSet = true;
-                        }
-                        else
-                        {
-                            wk.cells[num + 1].IsSet = true;
-                            wk.cells[num - 1].IsSet = true;
-                        }
-                        if (wk.cells[num].EndCell)
-                        {
-                            wk.cells[num + wk.HorizonCell].IsSet = true;
-                        }*/
+            if (num < wk.cells.Count && num > -1)
+            {
+                wk.cells[num].CellState = cell;
+                wk.cells[num].IsActivated = true;
+                wk.cells[num].IsSet = true;
+                wk.cells[num + wk.HorizonCell].HoldCheck = true;
+
+                //한 가로줄에서 왼쪽과 오른쪽 끝을 계산해서 제외해야한다.
+                if (11 != num % wk.cells.Count)
+                {
+                    //왼쪽칸에 RightEnd
+                    wk.cells[num + 1].RightEnd = true;
+                }
+                if (0 != num % wk.cells.Count)
+                {
+                    //오른쪽 칸에 LeftEnd
+                    wk.cells[num - 1].LeftEnd = true;
+                }
+            }
+        }
+        catch
+        {
+            Debug.Log("게임오버");
         }
     }
     /// <summary>
@@ -465,30 +504,28 @@ public class TettrisManager : MonoBehaviour
     /// <param name="cell">패턴별 cell 색상 선택용</param>
     void CFcellCenteredmade(int num, cellState cell)
     {
-        if (num < wk.cells.Count && num > -1)
+        try
         {
-            wk.cells[num].CellState = cell;
-            wk.cells[num].IsActivated = true;
-            wk.cells[num].IsCenter = false;
-            wk.cells[num].IsSet = true;
-            wk.cells[num + wk.HorizonCell].IsSet = true;
-            /*            if (wk.cells[num].RigntEnd)
-                        {
-                            wk.cells[num + 1].IsSet = true;
-                        }
-                        else if (wk.cells[num].LeftEnd)
-                        {
-                            wk.cells[num - 1].IsSet = true;
-                        }
-                        else
-                        {
-                            wk.cells[num + 1].IsSet = true;
-                            wk.cells[num - 1].IsSet = true;
-                        }
-                        if (wk.cells[num].EndCell)
-                        {
-                            wk.cells[num + wk.HorizonCell].IsSet = true;
-                        }*/
+            if (num < wk.cells.Count && num > -1)
+            {
+                wk.cells[num].CellState = cell;
+                wk.cells[num].IsActivated = true;
+                wk.cells[num].IsCenter = false;
+                wk.cells[num].IsSet = true;
+                wk.cells[num + wk.HorizonCell].HoldCheck = true;
+                if (wk.cells[num + 1] != null)
+                {
+                    wk.cells[num + 1].RightEnd = true;
+                }
+                if (wk.cells[num - 1] != null)
+                {
+                    wk.cells[num - 1].LeftEnd = true;
+                }
+            }
+        }
+        catch
+        {
+            Debug.Log("게임오버");
         }
     }
 
@@ -526,7 +563,7 @@ public class TettrisManager : MonoBehaviour
     {
         if (num < wk.cells.Count && num > -1)
         {
-            if (wk.cells[num].IsSet)
+            if (wk.cells[num].HoldCheck)
             {
                 CantMove = true;
             }
@@ -541,7 +578,7 @@ public class TettrisManager : MonoBehaviour
     {
         if (num < wk.cells.Count && num > -1)
         {
-            if (wk.cells[num].IsSet)
+            if (wk.cells[num].HoldCheck)
             {
                 CantMove = true;
             }
@@ -560,7 +597,7 @@ public class TettrisManager : MonoBehaviour
     {
         if (DeletPrevious)
         {
-            DespawnBlock(previousPoint, cellClass, RotateCheck);
+            DespawnBlock(previousPoint, cellClass, previousRotate);
         }
         CompairSpawnBlock(setPoint, cellClass, RotateCheck);
         switch (cell)
@@ -604,22 +641,22 @@ public class TettrisManager : MonoBehaviour
                         cellSellector(num - wk.HorizonCell + 1, cell);
                         break;
                     case 1:
-                        cellSellector(num + 1, cell);
-                        cellCenteredmade(num, cell);
                         cellSellector(num - 1, cell);
-                        cellSellector(num - 1 - wk.HorizonCell, cell);
+                        cellCenteredmade(num, cell);
+                        cellSellector(num + 1, cell);
+                        cellSellector(num + 1 + wk.HorizonCell, cell);
                         break;
                     case 2:
                         cellSellector(num + wk.HorizonCell, cell);
                         cellCenteredmade(num, cell);
                         cellSellector(num - wk.HorizonCell, cell);
-                        cellSellector(num + 1 + wk.HorizonCell, cell);
+                        cellSellector(num - 1 + wk.HorizonCell, cell);
                         break;
                     case 3:
-                        cellSellector(num - 1, cell);
-                        cellCenteredmade(num, cell);
                         cellSellector(num + 1, cell);
-                        cellSellector(num + 1 + wk.HorizonCell, cell);
+                        cellCenteredmade(num, cell);
+                        cellSellector(num - 1, cell);
+                        cellSellector(num - 1 - wk.HorizonCell, cell);
                         break;
                 }
                 break;
@@ -639,16 +676,16 @@ public class TettrisManager : MonoBehaviour
                         cellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 2:
-                        cellSellector(num - 1 + wk.HorizonCell, cell);
-                        cellSellector(num - 1, cell);
-                        cellCenteredmade(num, cell);
-                        cellSellector(num - wk.HorizonCell, cell);
-                        break;
-                    case 3:
-                        cellSellector(num + wk.HorizonCell + 1, cell);
                         cellSellector(num + wk.HorizonCell, cell);
                         cellCenteredmade(num, cell);
-                        cellSellector(num - 1, cell);
+                        cellSellector(num + 1, cell);
+                        cellSellector(num - wk.HorizonCell + 1, cell);
+                        break;
+                    case 3:
+                        cellSellector(num + 1, cell);
+                        cellCenteredmade(num, cell);
+                        cellSellector(num - wk.HorizonCell, cell);
+                        cellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                 }
                 break;
@@ -692,22 +729,22 @@ public class TettrisManager : MonoBehaviour
                         cellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 1:
-                        cellSellector(num + 1, cell);
-                        cellCenteredmade(num, cell);
                         cellSellector(num - 1, cell);
-                        cellSellector(num - 1 + wk.HorizonCell, cell);
+                        cellCenteredmade(num, cell);
+                        cellSellector(num + 1, cell);
+                        cellSellector(num + 1 - wk.HorizonCell, cell);
                         break;
                     case 2:
                         cellSellector(num + wk.HorizonCell, cell);
                         cellCenteredmade(num, cell);
                         cellSellector(num - wk.HorizonCell, cell);
-                        cellSellector(num - 1 + wk.HorizonCell, cell);
+                        cellSellector(num + 1 + wk.HorizonCell, cell);
                         break;
                     case 3:
-                        cellSellector(num - 1, cell);
-                        cellCenteredmade(num, cell);
                         cellSellector(num + 1, cell);
-                        cellSellector(num + 1 - wk.HorizonCell, cell);
+                        cellCenteredmade(num, cell);
+                        cellSellector(num - 1, cell);
+                        cellSellector(num - 1 + wk.HorizonCell, cell);
                         break;
                 }
                 break;
@@ -721,22 +758,22 @@ public class TettrisManager : MonoBehaviour
                         cellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 1:
-                        cellSellector(num - 1, cell);
+                        cellSellector(num + 1, cell);
                         cellCenteredmade(num, cell);
                         cellSellector(num + wk.HorizonCell, cell);
-                        cellSellector(num + wk.HorizonCell + 1, cell);
+                        cellSellector(num + wk.HorizonCell - 1, cell);
                         break;
                     case 2:
-                        cellSellector(num - 1 + wk.HorizonCell, cell);
-                        cellSellector(num - 1, cell);
+                        cellSellector(num + wk.HorizonCell, cell);
                         cellCenteredmade(num, cell);
-                        cellSellector(num - wk.HorizonCell, cell);
+                        cellSellector(num - 1, cell);
+                        cellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 3:
-                        cellSellector(num - wk.HorizonCell - 1, cell);
-                        cellSellector(num - wk.HorizonCell, cell);
-                        cellCenteredmade(num, cell);
                         cellSellector(num + 1, cell);
+                        cellCenteredmade(num, cell);
+                        cellSellector(num + wk.HorizonCell, cell);
+                        cellSellector(num + wk.HorizonCell - 1, cell);
                         break;
                 }
                 break;
@@ -822,22 +859,22 @@ public class TettrisManager : MonoBehaviour
                         DecellSellect(num - wk.HorizonCell + 1);
                         break;
                     case 1:
-                        DecellSellect(num + 1);
-                        DecellCentered(num);
                         DecellSellect(num - 1);
-                        DecellSellect(num - 1 - wk.HorizonCell);
+                        DecellCentered(num);
+                        DecellSellect(num + 1);
+                        DecellSellect(num + 1 + wk.HorizonCell);
                         break;
                     case 2:
                         DecellSellect(num + wk.HorizonCell);
                         DecellCentered(num);
                         DecellSellect(num - wk.HorizonCell);
-                        DecellSellect(num + 1 + wk.HorizonCell);
+                        DecellSellect(num - 1 + wk.HorizonCell);
                         break;
                     case 3:
-                        DecellSellect(num - 1);
-                        DecellCentered(num);
                         DecellSellect(num + 1);
-                        DecellSellect(num + 1 + wk.HorizonCell);
+                        DecellCentered(num);
+                        DecellSellect(num - 1);
+                        DecellSellect(num - 1 - wk.HorizonCell);
                         break;
                 }
                 break;
@@ -857,16 +894,16 @@ public class TettrisManager : MonoBehaviour
                         DecellSellect(num - wk.HorizonCell - 1);
                         break;
                     case 2:
-                        DecellSellect(num - 1 + wk.HorizonCell);
-                        DecellSellect(num - 1);
-                        DecellCentered(num);
-                        DecellSellect(num - wk.HorizonCell);
-                        break;
-                    case 3:
-                        DecellSellect(num + wk.HorizonCell + 1);
                         DecellSellect(num + wk.HorizonCell);
                         DecellCentered(num);
-                        DecellSellect(num - 1);
+                        DecellSellect(num + 1);
+                        DecellSellect(num - wk.HorizonCell + 1);
+                        break;
+                    case 3:
+                        DecellSellect(num + 1);
+                        DecellCentered(num);
+                        DecellSellect(num - wk.HorizonCell);
+                        DecellSellect(num - wk.HorizonCell - 1);
                         break;
                 }
                 break;
@@ -910,22 +947,22 @@ public class TettrisManager : MonoBehaviour
                         DecellSellect(num - wk.HorizonCell - 1);
                         break;
                     case 1:
-                        DecellSellect(num + 1);
-                        DecellCentered(num);
                         DecellSellect(num - 1);
-                        DecellSellect(num - 1 + wk.HorizonCell);
+                        DecellCentered(num);
+                        DecellSellect(num + 1);
+                        DecellSellect(num + 1 - wk.HorizonCell);
                         break;
                     case 2:
                         DecellSellect(num + wk.HorizonCell);
                         DecellCentered(num);
                         DecellSellect(num - wk.HorizonCell);
-                        DecellSellect(num - 1 + wk.HorizonCell);
+                        DecellSellect(num + 1 + wk.HorizonCell);
                         break;
                     case 3:
-                        DecellSellect(num - 1);
-                        DecellCentered(num);
                         DecellSellect(num + 1);
-                        DecellSellect(num + 1 - wk.HorizonCell);
+                        DecellCentered(num);
+                        DecellSellect(num - 1);
+                        DecellSellect(num - 1 + wk.HorizonCell);
                         break;
                 }
                 break;
@@ -939,22 +976,22 @@ public class TettrisManager : MonoBehaviour
                         DecellSellect(num - wk.HorizonCell - 1);
                         break;
                     case 1:
-                        DecellSellect(num - 1);
+                        DecellSellect(num + 1);
                         DecellCentered(num);
                         DecellSellect(num + wk.HorizonCell);
-                        DecellSellect(num + wk.HorizonCell + 1);
+                        DecellSellect(num + wk.HorizonCell - 1);
                         break;
                     case 2:
-                        DecellSellect(num - 1 + wk.HorizonCell);
-                        DecellSellect(num - 1);
+                        DecellSellect(num + wk.HorizonCell);
                         DecellCentered(num);
-                        DecellSellect(num - wk.HorizonCell);
+                        DecellSellect(num - 1);
+                        DecellSellect(num - wk.HorizonCell - 1);
                         break;
                     case 3:
-                        DecellSellect(num - wk.HorizonCell - 1);
-                        DecellSellect(num - wk.HorizonCell);
-                        DecellCentered(num);
                         DecellSellect(num + 1);
+                        DecellCentered(num);
+                        DecellSellect(num + wk.HorizonCell);
+                        DecellSellect(num + wk.HorizonCell - 1);
                         break;
                 }
                 break;
@@ -1038,22 +1075,22 @@ public class TettrisManager : MonoBehaviour
                         CFcellSellector(num - wk.HorizonCell + 1, cell);
                         break;
                     case 1:
-                        CFcellSellector(num + 1, cell);
-                        CFcellCenteredmade(num, cell);
                         CFcellSellector(num - 1, cell);
-                        CFcellSellector(num - 1 - wk.HorizonCell, cell);
+                        CFcellCenteredmade(num, cell);
+                        CFcellSellector(num + 1, cell);
+                        CFcellSellector(num + 1 + wk.HorizonCell, cell);
                         break;
                     case 2:
                         CFcellSellector(num + wk.HorizonCell, cell);
                         CFcellCenteredmade(num, cell);
                         CFcellSellector(num - wk.HorizonCell, cell);
-                        CFcellSellector(num + 1 + wk.HorizonCell, cell);
+                        CFcellSellector(num - 1 + wk.HorizonCell, cell);
                         break;
                     case 3:
-                        CFcellSellector(num - 1, cell);
-                        CFcellCenteredmade(num, cell);
                         CFcellSellector(num + 1, cell);
-                        CFcellSellector(num + 1 + wk.HorizonCell, cell);
+                        CFcellCenteredmade(num, cell);
+                        CFcellSellector(num - 1, cell);
+                        CFcellSellector(num - 1 - wk.HorizonCell, cell);
                         break;
                 }
                 break;
@@ -1073,16 +1110,16 @@ public class TettrisManager : MonoBehaviour
                         CFcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 2:
-                        CFcellSellector(num - 1 + wk.HorizonCell, cell);
-                        CFcellSellector(num - 1, cell);
-                        CFcellCenteredmade(num, cell);
-                        CFcellSellector(num - wk.HorizonCell, cell);
-                        break;
-                    case 3:
-                        CFcellSellector(num + wk.HorizonCell + 1, cell);
                         CFcellSellector(num + wk.HorizonCell, cell);
                         CFcellCenteredmade(num, cell);
-                        CFcellSellector(num - 1, cell);
+                        CFcellSellector(num + 1, cell);
+                        CFcellSellector(num - wk.HorizonCell + 1, cell);
+                        break;
+                    case 3:
+                        CFcellSellector(num + 1, cell);
+                        CFcellCenteredmade(num, cell);
+                        CFcellSellector(num - wk.HorizonCell, cell);
+                        CFcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                 }
                 break;
@@ -1126,22 +1163,22 @@ public class TettrisManager : MonoBehaviour
                         CFcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 1:
-                        CFcellSellector(num + 1, cell);
-                        CFcellCenteredmade(num, cell);
                         CFcellSellector(num - 1, cell);
-                        CFcellSellector(num - 1 + wk.HorizonCell, cell);
+                        CFcellCenteredmade(num, cell);
+                        CFcellSellector(num + 1, cell);
+                        CFcellSellector(num + 1 - wk.HorizonCell, cell);
                         break;
                     case 2:
                         CFcellSellector(num + wk.HorizonCell, cell);
                         CFcellCenteredmade(num, cell);
                         CFcellSellector(num - wk.HorizonCell, cell);
-                        CFcellSellector(num - 1 + wk.HorizonCell, cell);
+                        CFcellSellector(num + 1 + wk.HorizonCell, cell);
                         break;
                     case 3:
-                        CFcellSellector(num - 1, cell);
-                        CFcellCenteredmade(num, cell);
                         CFcellSellector(num + 1, cell);
-                        CFcellSellector(num + 1 - wk.HorizonCell, cell);
+                        CFcellCenteredmade(num, cell);
+                        CFcellSellector(num - 1, cell);
+                        CFcellSellector(num - 1 + wk.HorizonCell, cell);
                         break;
                 }
                 break;
@@ -1155,22 +1192,22 @@ public class TettrisManager : MonoBehaviour
                         CFcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 1:
-                        CFcellSellector(num - 1, cell);
+                        CFcellSellector(num + 1, cell);
                         CFcellCenteredmade(num, cell);
                         CFcellSellector(num + wk.HorizonCell, cell);
-                        CFcellSellector(num + wk.HorizonCell + 1, cell);
+                        CFcellSellector(num + wk.HorizonCell - 1, cell);
                         break;
                     case 2:
-                        CFcellSellector(num - 1 + wk.HorizonCell, cell);
-                        CFcellSellector(num - 1, cell);
+                        CFcellSellector(num + wk.HorizonCell, cell);
                         CFcellCenteredmade(num, cell);
-                        CFcellSellector(num - wk.HorizonCell, cell);
+                        CFcellSellector(num - 1, cell);
+                        CFcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 3:
-                        CFcellSellector(num - wk.HorizonCell - 1, cell);
-                        CFcellSellector(num - wk.HorizonCell, cell);
-                        CFcellCenteredmade(num, cell);
                         CFcellSellector(num + 1, cell);
+                        CFcellCenteredmade(num, cell);
+                        CFcellSellector(num + wk.HorizonCell, cell);
+                        CFcellSellector(num + wk.HorizonCell - 1, cell);
                         break;
                 }
                 break;
@@ -1257,22 +1294,22 @@ public class TettrisManager : MonoBehaviour
                         ComcellSellector(num - wk.HorizonCell + 1, cell);
                         break;
                     case 1:
-                        ComcellSellector(num + 1, cell);
-                        ComcellCenteredmade(num, cell);
                         ComcellSellector(num - 1, cell);
-                        ComcellSellector(num - 1 - wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + 1, cell);
+                        ComcellSellector(num + 1 + wk.HorizonCell, cell);
                         break;
                     case 2:
                         ComcellSellector(num + wk.HorizonCell, cell);
                         ComcellCenteredmade(num, cell);
                         ComcellSellector(num - wk.HorizonCell, cell);
-                        ComcellSellector(num + 1 + wk.HorizonCell, cell);
+                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
                         break;
                     case 3:
-                        ComcellSellector(num - 1, cell);
-                        ComcellCenteredmade(num, cell);
                         ComcellSellector(num + 1, cell);
-                        ComcellSellector(num + 1 + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num - 1 - wk.HorizonCell, cell);
                         break;
                 }
                 break;
@@ -1292,16 +1329,16 @@ public class TettrisManager : MonoBehaviour
                         ComcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 2:
-                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
-                        ComcellSellector(num - 1, cell);
-                        ComcellCenteredmade(num, cell);
-                        ComcellSellector(num - wk.HorizonCell, cell);
-                        break;
-                    case 3:
-                        ComcellSellector(num + wk.HorizonCell + 1, cell);
                         ComcellSellector(num + wk.HorizonCell, cell);
                         ComcellCenteredmade(num, cell);
-                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
+                        ComcellSellector(num - wk.HorizonCell + 1, cell);
+                        break;
+                    case 3:
+                        ComcellSellector(num + 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                 }
                 break;
@@ -1345,22 +1382,22 @@ public class TettrisManager : MonoBehaviour
                         ComcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 1:
-                        ComcellSellector(num + 1, cell);
-                        ComcellCenteredmade(num, cell);
                         ComcellSellector(num - 1, cell);
-                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + 1, cell);
+                        ComcellSellector(num + 1 - wk.HorizonCell, cell);
                         break;
                     case 2:
                         ComcellSellector(num + wk.HorizonCell, cell);
                         ComcellCenteredmade(num, cell);
                         ComcellSellector(num - wk.HorizonCell, cell);
-                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
+                        ComcellSellector(num + 1 + wk.HorizonCell, cell);
                         break;
                     case 3:
-                        ComcellSellector(num - 1, cell);
-                        ComcellCenteredmade(num, cell);
                         ComcellSellector(num + 1, cell);
-                        ComcellSellector(num + 1 - wk.HorizonCell, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
                         break;
                 }
                 break;
@@ -1374,22 +1411,22 @@ public class TettrisManager : MonoBehaviour
                         ComcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 1:
-                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + 1, cell);
                         ComcellCenteredmade(num, cell);
                         ComcellSellector(num + wk.HorizonCell, cell);
-                        ComcellSellector(num + wk.HorizonCell + 1, cell);
+                        ComcellSellector(num + wk.HorizonCell - 1, cell);
                         break;
                     case 2:
-                        ComcellSellector(num - 1 + wk.HorizonCell, cell);
-                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
                         ComcellCenteredmade(num, cell);
-                        ComcellSellector(num - wk.HorizonCell, cell);
+                        ComcellSellector(num - 1, cell);
+                        ComcellSellector(num - wk.HorizonCell - 1, cell);
                         break;
                     case 3:
-                        ComcellSellector(num - wk.HorizonCell - 1, cell);
-                        ComcellSellector(num - wk.HorizonCell, cell);
-                        ComcellCenteredmade(num, cell);
                         ComcellSellector(num + 1, cell);
+                        ComcellCenteredmade(num, cell);
+                        ComcellSellector(num + wk.HorizonCell, cell);
+                        ComcellSellector(num + wk.HorizonCell - 1, cell);
                         break;
                 }
                 break;

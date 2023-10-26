@@ -108,7 +108,7 @@ public class WorkArea : MonoBehaviour
                     }
                     else if (j == 0)
                     {
-                        cells[makeingnum].RigntEnd = true;
+                        cells[makeingnum].RightEnd = true;
                     }
                     else if (j == (HorizonCell - 1))
                     {
@@ -140,7 +140,7 @@ public class WorkArea : MonoBehaviour
                     }
                     else if (j == 0)
                     {
-                        cells[makeingnum].RigntEnd = true;
+                        cells[makeingnum].RightEnd = true;
                     }
                     else if (j == (HorizonCell - 1))
                     {
@@ -164,7 +164,7 @@ public class WorkArea : MonoBehaviour
                     cells[makeingnum].CellState = cellState.Empty;
                     if (j == 0)
                     {
-                        cells[makeingnum].RigntEnd = true;
+                        cells[makeingnum].RightEnd = true;
                     }
                     else if (j == (HorizonCell - 1))
                     {

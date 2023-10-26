@@ -31,7 +31,7 @@ public class CellData : MonoBehaviour
     /// <summary>
     /// 剧率 场 眉农
     /// </summary>
-    public bool RigntEnd = false;
+    public bool RightEnd = false;
 
     /// <summary>
     /// 剧率 场 眉农
@@ -44,6 +44,7 @@ public class CellData : MonoBehaviour
     public bool IsCenter = false;
 
     public bool IsSet = false;
+    public bool HoldCheck = false;
 
     public Action<bool> RightReached;
     public Action<bool> LeftReached;
@@ -69,15 +70,15 @@ public class CellData : MonoBehaviour
                 }
                 else
                 {
-                    if (RigntEnd)
+                    if (RightEnd)
                     {
                         RightReached?.Invoke(false);
                     }
-                    else if(LeftEnd)
+                    if (LeftEnd)
                     {
                         LeftReached?.Invoke(false);
                     }
-                    else if(EndCell)
+                    if (EndCell)
                     {
                         ReachedTheEnd?.Invoke();
                     }
