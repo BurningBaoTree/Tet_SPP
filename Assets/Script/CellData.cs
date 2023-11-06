@@ -24,7 +24,7 @@ public enum cellState
 public class CellData : MonoBehaviour
 {
     /// <summary>
-    /// 양쪽 끝 체크
+    /// 바닥 체크
     /// </summary>
     public bool EndCell = false;
 
@@ -43,7 +43,14 @@ public class CellData : MonoBehaviour
     /// </summary>
     public bool IsCenter = false;
 
+    /// <summary>
+    /// 배치되었음
+    /// </summary>
     public bool IsSet = false;
+
+    /// <summary>
+    /// 멈추기 체크
+    /// </summary>
     public bool HoldCheck = false;
 
     public Action<bool> RightReached;

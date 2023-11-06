@@ -332,7 +332,21 @@ public class TettrisManager : MonoBehaviour
     void RightRotateMove()
     {
         RotateCheck++;
-        SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+        if (!RigthmoveCheck)
+        {
+            DespawnBlock(NowStatePoint, cellClass,rotateCheck);
+            SpawnBlock(NowStatePoint + 1, cellClass, RotateCheck, true);
+        }
+        else if (!LeftmoveCheck)
+        {
+            DespawnBlock(NowStatePoint, cellClass, rotateCheck);
+            SpawnBlock(NowStatePoint - 1, cellClass, RotateCheck, true);
+        }
+        else
+        {
+            DespawnBlock(NowStatePoint, cellClass, rotateCheck);
+            SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+        }
         previousPoint = NowStatePoint;
         previousRotate = RotateCheck;
         setPoint = NowStatePoint - wk.HorizonCell;
@@ -346,7 +360,21 @@ public class TettrisManager : MonoBehaviour
     void LeftRotateMove()
     {
         RotateCheck--;
-        SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+        if (!RigthmoveCheck)
+        {
+            DespawnBlock(NowStatePoint, cellClass, rotateCheck);
+            SpawnBlock(NowStatePoint + 1, cellClass, RotateCheck, true);
+        }
+        else if (!LeftmoveCheck)
+        {
+            DespawnBlock(NowStatePoint, cellClass, rotateCheck);
+            SpawnBlock(NowStatePoint - 1, cellClass, RotateCheck, true);
+        }
+        else
+        {
+            DespawnBlock(NowStatePoint, cellClass, rotateCheck);
+            SpawnBlock(NowStatePoint, cellClass, RotateCheck, true);
+        }
         previousPoint = NowStatePoint;
         previousRotate = RotateCheck;
         setPoint = NowStatePoint - wk.HorizonCell;
@@ -378,6 +406,7 @@ public class TettrisManager : MonoBehaviour
                     blockGroup.Add(wk.cells[i * wk.HorizonCell + j]);
                 }
                 reFreshBlocks(i);
+                LinePathch();
             }
         }
     }
@@ -595,6 +624,7 @@ public class TettrisManager : MonoBehaviour
     /// <param name="DeletPrevious">전에껄 삭제할지 말지 결정</param>
     void SpawnBlock(int num, cellState cell, int rotateState, bool DeletPrevious)
     {
+        ///전에 있던 블록들을 빈 상태로 전환
         if (DeletPrevious)
         {
             DespawnBlock(previousPoint, cellClass, previousRotate);
@@ -816,6 +846,13 @@ public class TettrisManager : MonoBehaviour
                 break;
         }
     }
+
+    /// <summary>
+    /// 해당 위치 블록을 제거하는 함수
+    /// </summary>
+    /// <param name="num"></param>
+    /// <param name="cell"></param>
+    /// <param name="rotateState"></param>
     void DespawnBlock(int num, cellState cell, int rotateState)
     {
         switch (cell)
@@ -1032,6 +1069,13 @@ public class TettrisManager : MonoBehaviour
                 break;
         }
     }
+
+    /// <summary>
+    /// 해당 위치 블록을 고정하는 함수
+    /// </summary>
+    /// <param name="num"></param>
+    /// <param name="cell"></param>
+    /// <param name="rotateState"></param>
     void conformBlock(int num, cellState cell, int rotateState)
     {
         switch (cell)
@@ -1251,6 +1295,13 @@ public class TettrisManager : MonoBehaviour
         }
         previousPoint = StartPoint;
     }
+
+    /// <summary>
+    /// 비교만 하는 함수
+    /// </summary>
+    /// <param name="num"></param>
+    /// <param name="cell"></param>
+    /// <param name="rotateState"></param>
     void CompairSpawnBlock(int num, cellState cell, int rotateState)
     {
         switch (cell)
